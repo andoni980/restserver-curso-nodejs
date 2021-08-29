@@ -1,56 +1,83 @@
 const { response, request } = require( 'express' );
+const bcryptjs = require( 'bcryptjs' );
 
-const usersGet = ( req, res ) => {
+const User = require( '../models/user' );
 
-    const { q, name = 'No name', apikey, page = 1, limit } = req.query;
+const usersGet = async ( req = request, res = response ) => {
+
+    const { limit = 5, from = 0 } = req.query;
+    const query = { state: true };
+
+    // const users = await User.find( query )
+    //     .skip( Number( from ) )
+    //     .limit( Number( limit ) );
+
+    // const total = await User.countDocuments( query );
+
+    const [ total, users ] = await Promise.all( [
+        User.countDocuments( query ),
+        User.find( query )
+            .skip( Number( from ) )
+            .limit( Number( limit ) )
+    ] );
 
     res.json( {
-        ok: true,
-        msg: 'get API desde controlador',
-        q,
-        name,
-        apikey,
-        page,
-        limit
+        total,
+        users
     } );
 };
 
-const usersPost = ( req, res ) => {
+const usersPost = async ( req, res = response ) => {
 
-    const { name, age } = req.body;
+    const { name, email, password, rol } = req.body;
+    const user = new User( { name, email, password, rol } );
+
+
+    // Encriptar la contraseña
+    const salt = bcryptjs.genSaltSync();
+    user.password = bcryptjs.hashSync( password, salt );
+
+    // Guardar en DB
+    await user.save();
+
     res.json( {
-        // ok: true,  NO NECESARIO
-        msg: 'post API desde controlador',
-        name,
-        age,
+        user
     } );
 };
 
-const usersPut = ( req, res ) => {
+const usersPut = async ( req, res ) => {
 
     const { id } = req.params;
+    const { _id, password, google, email, ...rest } = req.body;
 
-    res.json( {
-        // ok: true,  NO NECESARIO
-        msg: 'put API desde controlador',
-        id
+    if ( password ) {
+        const salt = bcryptjs.genSaltSync();
+        rest.password = bcryptjs.hashSync( password, salt );
+    }
 
-    } );
+    const user = await User.findByIdAndUpdate( id, rest );
+
+    res.json( user );
 };
 
 const usersPatch = ( req, res ) => {
     res.json( {
-        // ok: true,  NO NECESARIO
         msg: 'patch API desde controlador'
     } );
 };
 
-const usersDelete = ( req, res ) => {
-    res.json( {
-        // ok: true,  NO NECESARIO
-        msg: 'delete API desde controlador'
-    } );
+const usersDelete = async ( req, res = response ) => {
+
+    const { id } = req.params;
+
+    // Borrarlo fisicamente
+    // const user = await User.findByIdAndDelete( id ); // Perdemos la integridad referencial
+
+    const user = await User.findByIdAndUpdate( id, { state: false } )
+
+    res.json( user );
 };
+
 
 
 module.exports = {
